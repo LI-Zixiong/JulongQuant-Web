@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>巨龙量化 · 市场状态监测</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card-bg: #ffffff;
+    --text: #333333;
+    --text-secondary: #777777;
+    --border: #e2e4e8;
+    --bull: #d4503e;
+    --bear: #4a9e5e;
+    --highvol: #d99432;
+    --accent: #4a7fc1;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Nav ── */
+  nav {
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: var(--shadow);
+  }
+  .nav-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: center; padding: 0 24px; height: 56px;
+  }
+  .nav-logo {
+    font-size: 17px; font-weight: 600; margin-right: 40px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .nav-logo span { color: var(--accent); }
+  .nav-tabs { display: flex; gap: 4px; }
+  .nav-tab {
+    padding: 8px 16px; border-radius: 6px; cursor: pointer;
+    font-size: 14px; color: var(--text-secondary);
+    transition: all 0.15s; user-select: none;
+  }
+  .nav-tab:hover { background: rgba(0,0,0,0.04); color: var(--text); }
+  .nav-tab.active { background: rgba(74,127,193,0.1); color: var(--accent); font-weight: 500; }
+
+  /* ── Layout ── */
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card-bg); border-radius: 10px;
+    box-shadow: var(--shadow); border: 1px solid var(--border);
+    padding: 24px; margin-bottom: 20px;
+  }
+
+  /* ── Status Card ── */
+  .status-card { text-align: center; padding: 32px 24px; }
+  .status-regime {
+    font-size: 28px; font-weight: 700; margin-bottom: 4px;
+  }
+  .status-regime.bull { color: var(--bull); }
+  .status-regime.bear { color: var(--bear); }
+  .status-regime.unknown { color: var(--text-secondary); }
+  .status-date { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; }
+  .status-scores {
+    display: flex; justify-content: center; gap: 32px;
+    padding: 20px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .score-item { text-align: center; }
+  .score-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .score-value { font-size: 24px; font-weight: 700; }
+  .score-value.pos { color: var(--bull); }
+  .score-value.neg { color: var(--bear); }
+  .status-advice {
+    font-size: 15px; color: var(--text); line-height: 1.7;
+    max-width: 500px; margin: 0 auto;
+  }
+
+  /* ── Charts ── */
+  .chart-container { width: 100%; }
+  .chart-container.tall { height: 400px; }
+  .chart-container.medium { height: 280px; }
+  .chart-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+  .chart-header h3 { font-size: 16px; font-weight: 600; }
+  .chart-hint { font-size: 12px; color: var(--text-secondary); }
+
+  /* ── Data Info ── */
+  .info-section { margin-bottom: 24px; }
+  .info-section h3 { font-size: 16px; font-weight: 600; margin-bottom: 10px; color: var(--text); }
+  .info-section p { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.8; }
+  .field-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .field-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 400px; }
+  .field-table th, .field-table td {
+    text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border);
+  }
+  .field-table th { color: var(--text-secondary); font-weight: 500; width: 200px; }
+  .field-table td { color: var(--text); }
+
+  /* ── About ── */
+  .about-section { margin-bottom: 28px; }
+  .about-section h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+  .about-section p { font-size: 14px; color: var(--text-secondary); line-height: 1.8; }
+  .about-profile {
+    display: flex; gap: 40px; flex-wrap: wrap;
+    padding: 20px 0; border-top: 1px solid var(--border); margin-top: 20px;
+  }
+  .profile-item { font-size: 14px; }
+  .profile-label { color: var(--text-secondary); margin-bottom: 2px; font-size: 12px; }
+  .profile-value { color: var(--text); font-weight: 500; }
+  .about-copyright { font-size: 13px; color: var(--text-secondary); margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+  /* ── Footer ── */
+  .global-footer {
+    text-align: center; font-size: 13px; color: var(--text-secondary);
+    padding: 20px 0 8px;
+  }
+
+  /* ── Legend ── */
+  .chart-legend {
+    display: flex; gap: 20px; margin-bottom: 8px; font-size: 13px; color: var(--text-secondary);
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+
+  /* ── Mini chart ── */
+  .mini-chart-wrap { cursor: pointer; transition: opacity 0.15s; }
+  .mini-chart-wrap:hover { opacity: 0.85; }
+
+  @media (max-width: 768px) {
+    .container { padding: 12px; }
+    .nav-inner { padding: 0 12px; height: 50px; }
+    .nav-logo { font-size: 14px; margin-right: 12px; }
+    .nav-tab { padding: 5px 8px; font-size: 12px; }
+    .card { padding: 16px; }
+    .status-card { padding: 24px 16px; }
+    .status-regime { font-size: 22px; }
+    .status-scores { gap: 16px; flex-wrap: wrap; }
+    .score-value { font-size: 18px; }
+    .chart-container.tall { height: 280px; }
+    .chart-container.medium { height: 220px; }
+    .chart-header h3 { font-size: 14px; }
+    .chart-hint { display: none; }
+    .about-profile { flex-direction: column; gap: 16px; }
+    .info-section p { font-size: 13px; }
+  }
+  @media (max-width: 380px) {
+    .status-scores { flex-direction: column; gap: 12px; }
+    .nav-tab { padding: 4px 6px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo">巨龙<span>量化</span></div>
+    <div class="nav-tabs">
+      <div class="nav-tab active" data-page="dashboard">首页</div>
+      <div class="nav-tab" data-page="regime">市场状态</div>
+      <div class="nav-tab" data-page="info">数据说明</div>
+      <div class="nav-tab" data-page="about">关于</div>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Dashboard -->
+  <div class="page active" id="page-dashboard">
+    <div class="card status-card" id="status-card"></div>
+    <div class="card">
+      <div class="chart-header">
+        <h3>市场净值走势</h3>
+        <span class="chart-hint">点击图表查看详情 →</span>
+      </div>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:rgba(212,80,62,0.3)"></span>牛市</span>
+        <span class="legend-item"><span class="legend-dot" style="background:rgba(74,158,94,0.3)"></span>熊市</span>
+      </div>
+      <div class="mini-chart-wrap" id="mini-chart-click">
+        <div class="chart-container medium" id="mini-chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Regime Detail -->
+  <div class="page" id="page-regime">
+    <div class="card">
+      <div class="chart-header">
+        <h3>市场净值与牛熊状态</h3>
+        <span class="chart-hint">拖动下方滑块缩放 · 悬停查看详情</span>
+      </div>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:rgba(212,80,62,0.3)"></span>牛市</span>
+        <span class="legend-item"><span class="legend-dot" style="background:rgba(74,158,94,0.3)"></span>熊市</span>
+      </div>
+      <div class="chart-container tall" id="chart-nav"></div>
+    </div>
+    <div class="card">
+      <div class="chart-header">
+        <h3>波动率分位</h3>
+        <span class="chart-hint">橙色区域为高波动状态</span>
+      </div>
+      <div class="chart-container medium" id="chart-vol"></div>
+    </div>
+    <div class="card">
+      <div class="chart-header">
+        <h3>综合评分</h3>
+        <span class="chart-hint">regime / trend / breadth 三线联动</span>
+      </div>
+      <div class="chart-container medium" id="chart-score"></div>
+    </div>
+  </div>
+
+  <!-- Data Info -->
+  <div class="page" id="page-info">
+    <div class="card">
+      <div class="info-section">
+        <h3>Regime 判断逻辑</h3>
+        <p>市场状态判断器通过三个维度综合评分，识别当前处于牛市还是熊市，以及波动率的高低：</p>
+        <p><strong>趋势 (Trend)</strong> — 基于市场指数在 20/60/120 三个时间窗口的风险调整动量，权重分别为 20%/45%/35%。使用因果归一化（仅用历史数据估计尺度），避免未来函数。</p>
+        <p><strong>广度 (Breadth)</strong> — 衡量市场整体参与度，包括当日上涨股票比例、20日和60日正收益股票比例，权重分别为 15%/35%/50%。</p>
+        <p><strong>波动率 (Volatility)</strong> — 20日年化波动率在过去 3 年中的分位数，通过 0.60/0.40 的迟滞阈值判定高/低波动状态。</p>
+        <p>综合评分 = 60% 趋势 + 40% 广度，再经迟滞机制（牛市需连续 5 天突破 0.50，熊市需连续 3 天跌破 -0.35）转换为稳定的牛/熊状态。最终将方向（牛/熊）与波动（高/低）组合为四种市场状态。</p>
+      </div>
+      <div class="info-section">
+        <h3>四种市场状态</h3>
+        <div class="field-table-wrapper">
+        <table class="field-table">
+          <tr><th>低波动牛市</th><td>Bull + LowVol — 趋势稳健，波动可控。维持仓位，逢回调可加仓。</td></tr>
+          <tr><th>高波动牛市</th><td>Bull + HighVol — 趋势向上但波动加剧，警惕赶顶。考虑分批止盈，适度降低弹性。</td></tr>
+          <tr><th>低波动熊市</th><td>Bear + LowVol — 阴跌格局，控制仓位。耐心等待右侧信号，不宜急于抄底。</td></tr>
+          <tr><th>高波动熊市</th><td>Bear + HighVol — 波动剧烈且趋势向下。收紧仓位至最低，空仓睡觉战法。</td></tr>
+        </table>
+        </div>
+      </div>
+      <div class="info-section">
+        <h3>关键字段说明</h3>
+        <div class="field-table-wrapper">
+        <table class="field-table">
+          <tr><th>date</th><td>交易日期</td></tr>
+          <tr><th>market_nav</th><td>市场净值（等权基准，起始为 1.0）</td></tr>
+          <tr><th>regime_score</th><td>综合方向评分 [-1, 1]，正为偏多，负为偏空</td></tr>
+          <tr><th>trend_score</th><td>趋势维度评分 [-1, 1]</td></tr>
+          <tr><th>breadth_score</th><td>广度维度评分 [-1, 1]</td></tr>
+          <tr><th>vol_percentile</th><td>波动率历史分位数 [0, 1]</td></tr>
+          <tr><th>bull</th><td>牛熊状态（1=牛, 0=熊）</td></tr>
+          <tr><th>high_vol</th><td>高波动标记（1=高波动, 0=低波动）</td></tr>
+          <tr><th>state_age</th><td>当前状态已持续的交易日数</td></tr>
+          <tr><th>drawdown</th><td>当前回撤幅度（相对于历史最高净值）</td></tr>
+        </table>
+        </div>
+      </div>
+      <div class="info-section">
+        <h3>数据来源</h3>
+        <p>标的范围：中证 500 + 中证 1000 成分股。</p>
+        <p>更新频率：交易日每日更新。</p>
+        <p>时间跨度：2012 年至今。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- About -->
+  <div class="page" id="page-about">
+    <div class="card">
+      <div class="about-section">
+        <h3>巨龙量化</h3>
+        <p>专注中证 500 + 1000 指数跟随策略的个人量化项目。通过系统化的因子研究和回测框架，在中证中小盘指数成分股中寻找超额收益机会。</p>
+      </div>
+      <div class="about-section">
+        <h3>市场状态识别</h3>
+        <p>基于多维度趋势、广度与波动率信号，将市场划分为四种状态（低波动牛市 / 高波动牛市 / 低波动熊市 / 高波动熊市），辅助择时与仓位决策。本页面为该模块的可视化展示。</p>
+      </div>
+      <div class="about-profile">
+        <div class="profile-item">
+          <div class="profile-label">ID</div>
+          <div class="profile-value">DilessBear</div>
+        </div>
+        <div class="profile-item">
+          <div class="profile-label">Education</div>
+          <div class="profile-value">
+            BS, Nankai University<br><span style="font-weight:400;color:var(--text-secondary)">Finance & Materials Chemistry (Dual Degree)</span>
+            <br><br>
+            MS, The University of Hong Kong<br><span style="font-weight:400;color:var(--text-secondary)">Business Analytics</span>
+          </div>
+        </div>
+        <div class="profile-item">
+          <div class="profile-label">Email</div>
+          <div class="profile-value">zxl1@connect.hku.hk</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="global-footer">&copy; DilessBear</footer>
+
+</div>
+
+<script>
+// ════════ Data (assigned after data.js loads) ════════
+let DATA, allData, latest;
+
+// ════════ Navigation ════════
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const page = tab.dataset.page;
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('page-' + page).classList.add('active');
+    if (page === 'regime' && !window._regimeChartsInit) {
+      initRegimeCharts();
+      window._regimeChartsInit = true;
+    }
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+  });
+});
+
+document.getElementById('mini-chart-click').addEventListener('click', () => {
+  document.querySelector('.nav-tab[data-page="regime"]').click();
+});
+
+// ════════ Helper: compute state intervals ════════
+// Returns [{start: dateStr, end: dateStr, state: value}, ...]
+function computeStateIntervals(data, stateFn) {
+  if (!data || data.length === 0) return [];
+  const intervals = [];
+  let curState = stateFn(data[0]);
+  let startDate = data[0].date;
+  for (let i = 1; i < data.length; i++) {
+    const s = stateFn(data[i]);
+    if (s !== curState) {
+      intervals.push({ start: startDate, end: data[i - 1].date, state: curState });
+      curState = s;
+      startDate = data[i].date;
+    }
+  }
+  intervals.push({ start: startDate, end: data[data.length - 1].date, state: curState });
+  return intervals;
+}
+
+// Convert intervals to ECharts markArea data format: [[{xAxis: start}, {xAxis: end}], ...]
+function intervalsToMarkArea(intervals, colorFn) {
+  return intervals.map(iv => [
+    { xAxis: iv.start, itemStyle: { color: colorFn(iv.state) } },
+    { xAxis: iv.end }
+  ]);
+}
+
+// ════════ Dashboard Status Card ════════
+function renderStatusCard() {
+  const card = document.getElementById('status-card');
+  const regime = latest.regime || 'Unknown';
+  const regimeCn = latest.regime_cn || '数据预热中';
+  const advice = latest.advice || '';
+  const stateAge = latest.state_age != null ? Math.round(latest.state_age) : 0;
+  const date = latest.date || '';
+  const isBull = latest.bull === 1;
+  const regimeClass = regime === 'Unknown' ? 'unknown' : (isBull ? 'bull' : 'bear');
+
+  const scoreItem = (label, val) => {
+    if (val == null || isNaN(val)) {
+      return `<div class="score-item"><div class="score-label">${label}</div><div class="score-value">—</div></div>`;
+    }
+    const cls = val >= 0 ? 'pos' : 'neg';
+    return `<div class="score-item"><div class="score-label">${label}</div><div class="score-value ${cls}">${val.toFixed(3)}</div></div>`;
+  };
+
+  card.innerHTML = `
+    <div class="status-regime ${regimeClass}">${regimeCn}</div>
+    <div class="status-date">${date} · 已持续 ${stateAge} 个交易日</div>
+    <div class="status-scores">
+      ${scoreItem('综合分', latest.regime_score)}
+      ${scoreItem('趋势分', latest.trend_score)}
+      ${scoreItem('广度分', latest.breadth_score)}
+    </div>
+    <div class="status-advice">${advice}</div>
+  `;
+}
+
+// ════════ Mini Chart ════════
+function renderMiniChart() {
+  const chart = echarts.init(document.getElementById('mini-chart'));
+  const validData = allData.filter(d => d.market_nav != null && d.regime !== 'Unknown');
+  const dates = validData.map(d => d.date);
+  const navs = validData.map(d => d.market_nav);
+  const intervals = computeStateIntervals(validData, d => d.bull);
+  const markAreas = intervalsToMarkArea(intervals,
+    s => s === 1 ? 'rgba(212,80,62,0.08)' : 'rgba(74,158,94,0.08)');
+
+  chart.setOption({
+    tooltip: { trigger: 'axis', formatter: p => {
+      const d = validData[p[0].dataIndex];
+      if (!d) return '';
+      return `<b>${d.date}</b><br/>净值: ${d.market_nav.toFixed(2)}<br/>日收益: ${(d.market_ret_1d * 100).toFixed(2)}%<br/>回撤: ${(d.drawdown * 100).toFixed(1)}%<br/>状态: ${d.regime_cn}`;
+    } },
+    grid: { left: 60, right: 20, top: 10, bottom: 30 },
+    xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 11, color: '#999' }, axisLine: { lineStyle: { color: '#ddd' } } },
+    yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#999' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+    series: [{
+      type: 'line', data: navs, showSymbol: false,
+      lineStyle: { width: 1.2, color: '#555' },
+      areaStyle: { color: 'rgba(74,127,193,0.06)' },
+      markArea: { silent: true, data: markAreas }
+    }],
+    dataZoom: [{ type: 'inside', start: 0, end: 100 }],
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ════════ Regime Detail Charts ════════
+function initRegimeCharts() {
+  const validData = allData.filter(d => d.regime !== 'Unknown');
+  const dates = validData.map(d => d.date);
+
+  const bullColor = 'rgba(212,80,62,0.08)';
+  const bearColor = 'rgba(74,158,94,0.08)';
+  const highVolColor = 'rgba(217,148,50,0.10)';
+  const bullColorLight = 'rgba(212,80,62,0.05)';
+  const bearColorLight = 'rgba(74,158,94,0.05)';
+
+  const bullBearIntervals = computeStateIntervals(validData, d => d.bull);
+  const highVolIntervals = computeStateIntervals(validData, d => d.high_vol);
+
+  // ── Chart 1: NAV + Bull/Bear ──
+  const chartNav = echarts.init(document.getElementById('chart-nav'));
+  const navValues = validData.map(d => d.market_nav);
+  const navMarkAreas = intervalsToMarkArea(bullBearIntervals, s => s === 1 ? bullColor : bearColor);
+
+  chartNav.setOption({
+    tooltip: {
+      trigger: 'axis',
+      formatter: function(params) {
+        const idx = params[0].dataIndex;
+        const d = validData[idx];
+        if (!d) return '';
+        return `<b>${d.date}</b><br/>净值: ${d.market_nav.toFixed(2)}<br/>日收益: ${(d.market_ret_1d * 100).toFixed(2)}%<br/>回撤: ${(d.drawdown * 100).toFixed(1)}%<br/>状态: ${d.regime_cn}`;
+      }
+    },
+    grid: { left: 60, right: 20, top: 30, bottom: 60 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#999' }, axisLine: { lineStyle: { color: '#ddd' } } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: '#999' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+    series: [{
+      type: 'line', data: navValues, showSymbol: false,
+      lineStyle: { width: 1.2, color: '#555' },
+      markArea: { silent: true, data: navMarkAreas }
+    }],
+    dataZoom: [
+      { type: 'inside', xAxisIndex: 0, start: 0, end: 100, filterMode: 'none' },
+      { type: 'slider', xAxisIndex: 0, bottom: 15, height: 20, start: 0, end: 100, filterMode: 'none',
+        borderColor: '#ddd', fillerColor: 'rgba(74,127,193,0.1)', handleStyle: { color: '#4a7fc1' } }
+    ],
+  });
+
+  // ── Chart 2: Vol percentile ──
+  const chartVol = echarts.init(document.getElementById('chart-vol'));
+  const volValues = validData.map(d => d.vol_percentile);
+  const volMarkAreas = intervalsToMarkArea(
+    highVolIntervals.filter(iv => iv.state === 1),
+    () => highVolColor
+  );
+
+  chartVol.setOption({
+    tooltip: {
+      trigger: 'axis',
+      formatter: function(params) {
+        const idx = params[0].dataIndex;
+        const d = validData[idx];
+        if (!d) return '';
+        return `<b>${d.date}</b><br/>波动分位: ${(d.vol_percentile * 100).toFixed(0)}%<br/>状态: ${d.high_vol === 1 ? '高波动' : '低波动'}`;
+      }
+    },
+    grid: { left: 60, right: 20, top: 20, bottom: 60 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#999' }, axisLine: { lineStyle: { color: '#ddd' } } },
+    yAxis: { type: 'value', min: -0.05, max: 1.05, axisLabel: { color: '#999', formatter: v => (v * 100).toFixed(0) + '%' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+    series: [{
+      type: 'line', data: volValues, showSymbol: false,
+      lineStyle: { width: 1.2, color: '#555' },
+      markArea: { silent: true, data: volMarkAreas },
+      markLine: {
+        symbol: 'none', silent: true,
+        data: [
+          { yAxis: 0.60, lineStyle: { color: 'rgba(217,148,50,0.4)', type: 'dashed' }, label: { show: true, formatter: '高波动进入 60%', position: 'insideEndTop', fontSize: 10, color: '#d99432' } },
+          { yAxis: 0.40, lineStyle: { color: 'rgba(74,127,193,0.4)', type: 'dashed' }, label: { show: true, formatter: '高波动退出 40%', position: 'insideEndBottom', fontSize: 10, color: '#4a7fc1' } },
+          { yAxis: 0.50, lineStyle: { color: 'rgba(150,150,150,0.3)', width: 1 }, label: { show: false } },
+        ]
+      }
+    }],
+    dataZoom: [
+      { type: 'inside', xAxisIndex: 0, start: 0, end: 100, filterMode: 'none' },
+      { type: 'slider', xAxisIndex: 0, bottom: 15, height: 20, start: 0, end: 100, filterMode: 'none',
+        borderColor: '#ddd', fillerColor: 'rgba(74,127,193,0.1)', handleStyle: { color: '#4a7fc1' } }
+    ],
+  });
+
+  // ── Chart 3: Scores ──
+  const chartScore = echarts.init(document.getElementById('chart-score'));
+  const regimeValues = validData.map(d => d.regime_score);
+  const trendValues = validData.map(d => d.trend_score);
+  const breadthValues = validData.map(d => d.breadth_score);
+  const scoreMarkAreas = intervalsToMarkArea(bullBearIntervals, s => s === 1 ? bullColorLight : bearColorLight);
+
+  chartScore.setOption({
+    tooltip: {
+      trigger: 'axis',
+      formatter: function(params) {
+        const idx = params[0].dataIndex;
+        const d = validData[idx];
+        if (!d) return '';
+        return `<b>${d.date}</b><br/>综合分: ${d.regime_score != null ? d.regime_score.toFixed(3) : '—'}<br/>趋势分: ${d.trend_score != null ? d.trend_score.toFixed(3) : '—'}<br/>广度分: ${d.breadth_score != null ? d.breadth_score.toFixed(3) : '—'}<br/>状态: ${d.regime_cn} (${Math.round(d.state_age)}天)`;
+      }
+    },
+    legend: {
+      data: ['综合分', '趋势分', '广度分'], top: 5,
+      textStyle: { fontSize: 12, color: '#666' },
+      icon: 'rect', itemWidth: 20, itemHeight: 2
+    },
+    grid: { left: 60, right: 20, top: 40, bottom: 60 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#999' }, axisLine: { lineStyle: { color: '#ddd' } } },
+    yAxis: { type: 'value', min: -1.05, max: 1.05, axisLabel: { color: '#999' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+    series: [
+      {
+        name: '综合分', type: 'line', data: regimeValues, showSymbol: false,
+        lineStyle: { width: 1.5, color: '#333' },
+        markArea: { silent: true, data: scoreMarkAreas },
+        markLine: {
+          symbol: 'none', silent: true,
+          data: [
+            { yAxis: 0.50, lineStyle: { color: 'rgba(212,80,62,0.4)', type: 'dashed' }, label: { show: true, formatter: '牛市进入 0.50', position: 'insideEndTop', fontSize: 10, color: '#d4503e' } },
+            { yAxis: -0.35, lineStyle: { color: 'rgba(74,158,94,0.4)', type: 'dashed' }, label: { show: true, formatter: '熊市进入 -0.35', position: 'insideEndBottom', fontSize: 10, color: '#4a9e5e' } },
+            { yAxis: 0, lineStyle: { color: 'rgba(150,150,150,0.3)', width: 1 }, label: { show: false } },
+          ]
+        }
+      },
+      {
+        name: '趋势分', type: 'line', data: trendValues, showSymbol: false,
+        lineStyle: { width: 1, color: '#4a7fc1', opacity: 0.7 }
+      },
+      {
+        name: '广度分', type: 'line', data: breadthValues, showSymbol: false,
+        lineStyle: { width: 1, color: '#4a9e5e', opacity: 0.7 }
+      },
+    ],
+    dataZoom: [
+      { type: 'inside', xAxisIndex: 0, start: 0, end: 100, filterMode: 'none' },
+      { type: 'slider', xAxisIndex: 0, bottom: 15, height: 20, start: 0, end: 100, filterMode: 'none',
+        borderColor: '#ddd', fillerColor: 'rgba(74,127,193,0.1)', handleStyle: { color: '#4a7fc1' } }
+    ],
+  });
+
+  // ── Link dataZoom across 3 charts ──
+  const charts = [chartNav, chartVol, chartScore];
+  let syncing = false;
+  charts.forEach((src, i) => {
+    src.on('dataZoom', function() {
+      if (syncing) return;
+      syncing = true;
+      const opt = src.getOption();
+      const start = opt.dataZoom[0].start;
+      const end = opt.dataZoom[0].end;
+      charts.forEach((tgt, j) => {
+        if (i !== j) {
+          tgt.dispatchAction({ type: 'dataZoom', start: start, end: end });
+        }
+      });
+      syncing = false;
+    });
+  });
+
+  window.addEventListener('resize', () => {
+    chartNav.resize();
+    chartVol.resize();
+    chartScore.resize();
+  });
+}
+
+// ════════ Init (load data with cache-busting, then render) ════════
+(function() {
+  var s = document.createElement('script');
+  s.src = 'data.js?v=' + Date.now();
+  s.onload = function() {
+    if (window.MARKET_DATA) {
+      DATA = window.MARKET_DATA;
+      allData = DATA.data;
+      latest = DATA.latest;
+      renderStatusCard();
+      renderMiniChart();
+    }
+  };
+  document.head.appendChild(s);
+})();
+</script>
+
+</body>
+</html>
