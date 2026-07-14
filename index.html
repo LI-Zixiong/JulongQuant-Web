@@ -79,11 +79,40 @@
     padding: 20px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
     margin-bottom: 20px;
   }
-  .score-item { text-align: center; }
-  .score-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
-  .score-value { font-size: 24px; font-weight: 700; }
-  .score-value.pos { color: var(--bull); }
-  .score-value.neg { color: var(--bear); }
+  /* ── Score Cards ── */
+  .score-cards {
+    display: flex; gap: 16px; margin-bottom: 20px;
+  }
+  .score-card {
+    flex: 1; text-align: center;
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px 12px; background: #fafbfc;
+  }
+  .score-card.today-highlight {
+    border-color: rgba(74,127,193,0.3);
+    background: rgba(74,127,193,0.03);
+  }
+  .score-card-label {
+    font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;
+  }
+  .score-card-value {
+    font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums;
+    line-height: 1.2; margin-bottom: 10px;
+  }
+  .score-card-value.pos { color: var(--bull); }
+  .score-card-value.neg { color: var(--bear); }
+  .score-trend {
+    display: flex; justify-content: center; align-items: center; gap: 3px;
+    font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-secondary);
+  }
+  .score-trend .t-val { padding: 0 3px; font-weight: 500; }
+  .score-trend .t-val.pos { color: var(--bull); }
+  .score-trend .t-val.neg { color: var(--bear); }
+  .score-trend .t-val.now { font-weight: 700; }
+  .score-trend .t-arrow { font-size: 10px; opacity: 0.5; }
+  .score-trend .t-arrow.up { color: var(--bull); opacity: 0.8; }
+  .score-trend .t-arrow.down { color: var(--bear); opacity: 0.8; }
+  .score-trend .t-label { font-size: 10px; opacity: 0.5; padding: 0 2px; }
   .status-advice {
     font-size: 15px; color: var(--text); line-height: 1.7;
     max-width: 500px; margin: 0 auto;
@@ -152,6 +181,8 @@
     .status-regime { font-size: 22px; }
     .status-scores { gap: 16px; flex-wrap: wrap; }
     .score-value { font-size: 18px; }
+    .score-cards { flex-direction: column; gap: 10px; }
+    .score-card-value { font-size: 22px; }
     .chart-container.tall { height: 280px; }
     .chart-container.medium { height: 220px; }
     .chart-header h3 { font-size: 14px; }
@@ -160,8 +191,8 @@
     .info-section p { font-size: 13px; }
   }
   @media (max-width: 380px) {
-    .status-scores { flex-direction: column; gap: 12px; }
     .nav-tab { padding: 4px 6px; font-size: 11px; }
+    .score-trend { font-size: 11px; }
   }
 </style>
 </head>
@@ -374,21 +405,52 @@ function renderStatusCard() {
   const isBull = latest.bull === 1;
   const regimeClass = regime === 'Unknown' ? 'unknown' : (isBull ? 'bull' : 'bear');
 
-  const scoreItem = (label, val) => {
-    if (val == null || isNaN(val)) {
-      return `<div class="score-item"><div class="score-label">${label}</div><div class="score-value">—</div></div>`;
-    }
-    const cls = val >= 0 ? 'pos' : 'neg';
-    return `<div class="score-item"><div class="score-label">${label}</div><div class="score-value ${cls}">${val.toFixed(3)}</div></div>`;
+  // Yesterday's data (second-to-last entry in allData)
+  const yesterday = allData.length >= 2 ? allData[allData.length - 2] : null;
+
+  // Build one score card: label + today's big value + trend row (ends at yesterday)
+  const scoreCard = (label, key) => {
+    const v0 = latest[key];
+    const vY = yesterday ? yesterday[key] : null;
+    const v5 = latest[key + '_5d'];
+    const v20 = latest[key + '_20d'];
+    const v60 = latest[key + '_60d'];
+
+    const fmt = v => (v == null || isNaN(v)) ? '—' : v.toFixed(3);
+    const cls = v => (v == null || isNaN(v)) ? '' : (v >= 0 ? 'pos' : 'neg');
+
+    // Arrow between two consecutive values: ↑ red / ↓ green / → neutral
+    const arrow = (a, b) => {
+      if (a == null || b == null || isNaN(a) || isNaN(b)) return '<span class="t-arrow">→</span>';
+      if (b > a) return '<span class="t-arrow up">↑</span>';
+      if (b < a) return '<span class="t-arrow down">↓</span>';
+      return '<span class="t-arrow">→</span>';
+    };
+
+    return `
+      <div class="score-card today-highlight">
+        <div class="score-card-label">${label}</div>
+        <div class="score-card-value ${cls(v0)}">${fmt(v0)}</div>
+        <div class="score-trend">
+          <span class="t-label">60d</span><span class="t-val ${cls(v60)}">${fmt(v60)}</span>
+          ${arrow(v60, v20)}
+          <span class="t-label">20d</span><span class="t-val ${cls(v20)}">${fmt(v20)}</span>
+          ${arrow(v20, v5)}
+          <span class="t-label">5d</span><span class="t-val ${cls(v5)}">${fmt(v5)}</span>
+          ${arrow(v5, vY)}
+          <span class="t-label">昨日</span><span class="t-val now ${cls(vY)}">${fmt(vY)}</span>
+          ${arrow(vY, v0)}
+        </div>
+      </div>`;
   };
 
   card.innerHTML = `
     <div class="status-regime ${regimeClass}">${regimeCn}</div>
     <div class="status-date">${date} · 已持续 ${stateAge} 个交易日</div>
-    <div class="status-scores">
-      ${scoreItem('综合分', latest.regime_score)}
-      ${scoreItem('趋势分', latest.trend_score)}
-      ${scoreItem('广度分', latest.breadth_score)}
+    <div class="score-cards">
+      ${scoreCard('综合分', 'regime_score')}
+      ${scoreCard('趋势分', 'trend_score')}
+      ${scoreCard('广度分', 'breadth_score')}
     </div>
     <div class="status-advice">${advice}</div>
   `;
