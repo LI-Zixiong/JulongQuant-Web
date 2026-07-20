@@ -662,7 +662,7 @@ function initRegimeCharts() {
   s.onload = function() {
     if (window.MARKET_DATA) {
       DATA = window.MARKET_DATA;
-      allData = DATA.data;
+      allData = DATA.data.filter(d => d.date >= '2015-01-01');
       latest = DATA.latest;
       renderStatusCard();
       renderMiniChart();
