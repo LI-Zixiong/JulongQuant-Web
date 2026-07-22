@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/png" href="icon.png">
-<title>巨龙量化 · 市场状态监测</title>
+<title>巨龙量化</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
   :root {
@@ -171,6 +171,42 @@
   .mini-chart-wrap { cursor: pointer; transition: opacity 0.15s; }
   .mini-chart-wrap:hover { opacity: 0.85; }
 
+  /* ── Portfolio ── */
+  .pf-cards { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+  .pf-card {
+    flex: 1; min-width: 140px; text-align: center;
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 10px; background: #fafbfc;
+  }
+  .pf-card-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .pf-card-value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .pf-card-value.pos { color: var(--bull); }
+  .pf-card-value.neg { color: var(--bear); }
+  .pf-card-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .holdings-grid { display: flex; gap: 20px; }
+  .holdings-col { flex: 1; min-width: 0; }
+  .holdings-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .holdings-title .ret-badge {
+    font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px;
+  }
+  .holdings-title .ret-badge.pos { background: rgba(212,80,62,0.1); color: var(--bull); }
+  .holdings-title .ret-badge.neg { background: rgba(74,158,94,0.1); color: var(--bear); }
+  .holdings-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .holdings-table th { text-align: right; padding: 6px 4px; color: var(--text-secondary); font-weight: 500; border-bottom: 1px solid var(--border); }
+  .holdings-table th:first-child { text-align: left; }
+  .holdings-table td { text-align: right; padding: 5px 4px; border-bottom: 1px solid #f0f0f0; font-variant-numeric: tabular-nums; }
+  .holdings-table td:first-child { text-align: left; font-weight: 500; }
+  .holdings-table td.pos { color: var(--bull); }
+  .holdings-table td.neg { color: var(--bear); }
+  .pf-daily-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pf-daily-table th { text-align: right; padding: 8px 8px; color: var(--text-secondary); font-weight: 500; border-bottom: 2px solid var(--border); }
+  .pf-daily-table th:first-child { text-align: left; }
+  .pf-daily-table td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .pf-daily-table td:first-child { text-align: left; }
+  .pf-daily-table td.pos { color: var(--bull); }
+  .pf-daily-table td.neg { color: var(--bear); }
+  .pf-daily-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
   @media (max-width: 768px) {
     .container { padding: 12px; }
     .nav-inner { padding: 0 12px; height: 50px; }
@@ -189,6 +225,10 @@
     .chart-hint { display: none; }
     .about-profile { flex-direction: column; gap: 16px; }
     .info-section p { font-size: 13px; }
+    .pf-cards { gap: 8px; }
+    .pf-card { min-width: 100px; padding: 10px 6px; }
+    .pf-card-value { font-size: 18px; }
+    .holdings-grid { flex-direction: column; gap: 16px; }
   }
   @media (max-width: 380px) {
     .nav-tab { padding: 4px 6px; font-size: 11px; }
@@ -204,6 +244,7 @@
     <div class="nav-tabs">
       <div class="nav-tab active" data-page="dashboard">首页</div>
       <div class="nav-tab" data-page="regime">市场状态</div>
+      <div class="nav-tab" data-page="portfolio">实盘</div>
       <div class="nav-tab" data-page="info">数据说明</div>
       <div class="nav-tab" data-page="about">关于</div>
     </div>
@@ -256,6 +297,23 @@
         <span class="chart-hint">regime / trend / breadth 三线联动</span>
       </div>
       <div class="chart-container medium" id="chart-score"></div>
+    </div>
+  </div>
+
+  <!-- Portfolio -->
+  <div class="page" id="page-portfolio">
+    <div class="card">
+      <div class="pf-cards" id="pf-cards"></div>
+    </div>
+    <div class="card">
+      <div class="chart-header">
+        <h3>净值走势</h3>
+        <span class="chart-hint">策略 vs ZZ1500 等权基准 · 7/20 起</span>
+      </div>
+      <div class="chart-container tall" id="pf-chart-nav"></div>
+    </div>
+    <div class="card">
+      <div class="holdings-grid" id="pf-holdings"></div>
     </div>
   </div>
 
@@ -358,6 +416,10 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     if (page === 'regime' && !window._regimeChartsInit) {
       initRegimeCharts();
       window._regimeChartsInit = true;
+    }
+    if (page === 'portfolio' && !window._pfInit && window.PORTFOLIO_DATA) {
+      renderPortfolio();
+      window._pfInit = true;
     }
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
   });
@@ -655,6 +717,165 @@ function initRegimeCharts() {
   });
 }
 
+// ════════ Portfolio Page ════════
+function renderPortfolio() {
+  const pf = window.PORTFOLIO_DATA;
+  if (!pf) return;
+  const L = pf.latest;
+
+  // ── Summary cards ──
+  const cards = document.getElementById('pf-cards');
+  const fmtPct = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  const fmtY = v => '¥' + v.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const posNeg = v => v >= 0 ? 'pos' : 'neg';
+
+  cards.innerHTML = `
+    <div class="pf-card">
+      <div class="pf-card-label">当前净值</div>
+      <div class="pf-card-value">${fmtY(L.equity)}</div>
+      <div class="pf-card-sub">NAV: ${L.nav.toFixed(4)} · ZZ1500: ${L.zz1500_nav.toFixed(4)}</div>
+    </div>
+    <div class="pf-card">
+      <div class="pf-card-label">累计收益</div>
+      <div class="pf-card-value ${posNeg(L.cum_return_pct)}">${fmtPct(L.cum_return_pct)}</div>
+      <div class="pf-card-sub">超额: ${(L.excess_nav * 100 - 100).toFixed(2)}%</div>
+    </div>
+    <div class="pf-card">
+      <div class="pf-card-label">当前仓位</div>
+      <div class="pf-card-value">${L.invested_pct.toFixed(1)}%</div>
+      <div class="pf-card-sub">${L.n_positions} 只 · ${fmtY(L.invested_value)}</div>
+    </div>
+    <div class="pf-card">
+      <div class="pf-card-label">当前现金</div>
+      <div class="pf-card-value">${fmtY(L.cash)}</div>
+      <div class="pf-card-sub">总权益 ${fmtY(L.equity)}</div>
+    </div>
+    <div class="pf-card">
+      <div class="pf-card-label">摩擦成本</div>
+      <div class="pf-card-value neg">${fmtY(pf.friction.total_friction_cost || 0)}</div>
+      <div class="pf-card-sub">初始资金 ${fmtY(L.initial_capital)}</div>
+    </div>
+  `;
+
+  // ── NAV chart ──
+  const chart = echarts.init(document.getElementById('pf-chart-nav'));
+  const hist = pf.nav_history;
+  const dates = hist.map(d => d.date);
+  const navVals = hist.map(d => d.nav);
+  const benchVals = hist.map(d => d.zz1500_nav);
+
+  chart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      formatter: function(params) {
+        const idx = params[0].dataIndex;
+        const d = hist[idx];
+        if (!d) return '';
+        return `<b>${d.date}</b><br/>策略净值: ${d.nav.toFixed(4)} (${d.ret_pct.toFixed(2)}%)<br/>ZZ1500: ${d.zz1500_nav.toFixed(4)} (${d.zz1500_ret_pct.toFixed(2)}%)<br/>超额: ${(d.excess_nav * 100 - 100).toFixed(2)}%<br/>回撤: ${d.drawdown_pct.toFixed(1)}%`;
+      }
+    },
+    legend: { data: ['策略净值', 'ZZ1500 基准'], top: 5, textStyle: { fontSize: 12, color: '#666' }, icon: 'rect', itemWidth: 20, itemHeight: 2 },
+    grid: { left: 55, right: 20, top: 40, bottom: 50 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#999' }, axisLine: { lineStyle: { color: '#ddd' } } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: '#999' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+    series: [
+      { name: '策略净值', type: 'line', data: navVals, showSymbol: false, lineStyle: { width: 1.8, color: '#4a7fc1' }, areaStyle: { color: 'rgba(74,127,193,0.06)' } },
+      { name: 'ZZ1500 基准', type: 'line', data: benchVals, showSymbol: false, lineStyle: { width: 1.2, color: '#999', type: 'dashed' } },
+    ],
+    dataZoom: [
+      { type: 'inside', zoomOnMouseWheel: true, moveOnMouseWheel: false, moveOnMouseMove: false },
+      { type: 'slider', bottom: 10, height: 18, borderColor: '#ddd', fillerColor: 'rgba(74,127,193,0.1)', handleStyle: { color: '#4a7fc1' } }
+    ],
+  });
+  window.addEventListener('resize', () => chart.resize());
+
+  // ── Holdings (sorted: common first, then new/sold) ──
+  const holdingsDiv = document.getElementById('pf-holdings');
+  const todayList = pf.today_holdings || [];
+  const yList = (pf.yesterday && pf.yesterday.holdings) || [];
+
+  const todayIds = new Set(todayList.map(h => h.stock_id));
+  const yIds = new Set(yList.map(h => h.stock_id));
+  const commonIds = [...todayIds].filter(id => yIds.has(id));
+
+  // Sort: common first (same order), then unique
+  const sortHoldings = (list, otherIds) => [
+    ...commonIds.map(id => list.find(h => h.stock_id === id)).filter(Boolean),
+    ...list.filter(h => !otherIds.has(h.stock_id))
+  ];
+  const todaySorted = sortHoldings(todayList, yIds);
+  const yesterdaySorted = sortHoldings(yList, todayIds);
+
+  // Yesterday table: name, shares, price, market_value, P&L, return%
+  const fmtYesterdayTable = (holdings) => {
+    if (!holdings || holdings.length === 0) {
+      return `<p style="color:var(--text-secondary);font-size:13px;">空仓</p>`;
+    }
+    const rows = holdings.map(h => {
+      const name = h.stock_name || '';
+      const code = h.stock_id || '';
+      const pnl = h.net_pnl;
+      const ret = h.return_pct;
+      let pnlVal = '—', pnlCls = '';
+      if (pnl != null) { pnlCls = pnl >= 0 ? 'pos' : 'neg'; pnlVal = (pnl >= 0 ? '+' : '') + pnl.toFixed(0); }
+      let retVal = '—', retCls = '';
+      if (ret != null) { retCls = ret >= 0 ? 'pos' : 'neg'; retVal = (ret >= 0 ? '+' : '') + ret.toFixed(2) + '%'; }
+      const mv = h.market_value || (h.last_price ? h.last_price * (h.shares || (h.lots||0)*100) : null);
+      return `<tr>
+        <td>${name}<br><span style="font-size:10px;color:var(--text-secondary)">${code}</span></td>
+        <td>${h.shares || (h.lots||0)*100}</td>
+        <td>${h.last_price != null ? h.last_price.toFixed(2) : '—'}</td>
+        <td>${mv != null ? mv.toLocaleString('zh-CN') : '—'}</td>
+        <td class="${pnlCls}">${pnlVal}</td>
+        <td class="${retCls}">${retVal}</td>
+      </tr>`;
+    }).join('');
+    return `<table class="holdings-table">
+      <thead><tr><th>名称/代码</th><th>股数</th><th>现价</th><th>市值</th><th>浮盈</th><th>收益率</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  };
+
+  // Today table: name, shares, price, market_value only (no return)
+  const fmtTodayTable = (holdings) => {
+    if (!holdings || holdings.length === 0) {
+      return `<p style="color:var(--text-secondary);font-size:13px;">空仓</p>`;
+    }
+    const rows = holdings.map(h => {
+      const name = h.stock_name || '';
+      const code = h.stock_id || '';
+      return `<tr>
+        <td>${name}<br><span style="font-size:10px;color:var(--text-secondary)">${code}</span></td>
+        <td>${h.shares || (h.lots||0)*100}</td>
+        <td>${h.last_price != null ? h.last_price.toFixed(2) : '—'}</td>
+        <td>${h.market_value != null ? h.market_value.toLocaleString('zh-CN') : '—'}</td>
+      </tr>`;
+    }).join('');
+    return `<table class="holdings-table">
+      <thead><tr><th>名称/代码</th><th>股数</th><th>现价</th><th>市值</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  };
+
+  const yRet = L.daily_return_pct;
+  const yBadge = yRet != null ? `<span class="ret-badge ${posNeg(yRet)}">${yRet >= 0 ? '+' : ''}${yRet.toFixed(2)}%</span>` : '';
+
+  holdingsDiv.innerHTML = `
+    <div class="holdings-col">
+      <div class="holdings-title">昨日持仓 ${yBadge}</div>
+      ${fmtYesterdayTable(yesterdaySorted)}
+    </div>
+    <div class="holdings-col">
+      <div class="holdings-title">今日持仓</div>
+      ${fmtTodayTable(todaySorted)}
+    </div>
+  `;
+
+  // ── Daily summary (hidden, code kept for future use) ──
+  // const dailyDiv = document.getElementById('pf-daily');
+  // if (dailyDiv) { /* rendering code here if needed later */ }
+}
+
 // ════════ Init (load data with cache-busting, then render) ════════
 (function() {
   var s = document.createElement('script');
@@ -667,6 +888,15 @@ function initRegimeCharts() {
       renderStatusCard();
       renderMiniChart();
     }
+    // Load portfolio.js after data.js
+    var p = document.createElement('script');
+    p.src = 'portfolio.js?v=' + Date.now();
+    p.onload = function() {
+      if (window.PORTFOLIO_DATA) {
+        // Pre-render portfolio data (charts will init on tab click)
+      }
+    };
+    document.head.appendChild(p);
   };
   document.head.appendChild(s);
 })();
