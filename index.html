@@ -171,6 +171,11 @@
   .mini-chart-wrap { cursor: pointer; transition: opacity 0.15s; }
   .mini-chart-wrap:hover { opacity: 0.85; }
 
+  /* ── Strategy toggle ── */
+  .strategy-toggle { display: inline-flex; gap: 2px; background: #e8eaed; border-radius: 8px; padding: 3px; }
+  .strategy-toggle span { padding: 4px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; color: #666; transition: all 0.2s; }
+  .strategy-toggle span.active { background: #fff; color: #333; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
   /* ── Portfolio ── */
   .pf-cards { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
   .pf-card {
@@ -302,13 +307,20 @@
 
   <!-- Portfolio -->
   <div class="page" id="page-portfolio">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px">
+      <h3 style="margin:0">实盘</h3>
+      <div class="strategy-toggle" id="strategy-toggle">
+        <span class="active" data-s="s1">基准策略</span>
+        <span data-s="s2">防守策略</span>
+      </div>
+    </div>
     <div class="card">
       <div class="pf-cards" id="pf-cards"></div>
     </div>
     <div class="card">
       <div class="chart-header">
         <h3>净值走势</h3>
-        <span class="chart-hint">策略 vs ZZ1500 等权基准 · 7/20 起</span>
+        <span class="chart-hint">策略 vs 基准 · 7/20 起</span>
       </div>
       <div class="chart-container tall" id="pf-chart-nav"></div>
     </div>
@@ -344,7 +356,7 @@
         <div class="field-table-wrapper">
         <table class="field-table">
           <tr><th>date</th><td>交易日期</td></tr>
-          <tr><th>market_nav</th><td>市场净值（等权基准，起始为 1.0）</td></tr>
+          <tr><th>market_nav</th><td>市场净值（ZZ1500 官指，起始为 1.0）</td></tr>
           <tr><th>regime_score</th><td>综合方向评分 [-1, 1]，正为偏多，负为偏空</td></tr>
           <tr><th>trend_score</th><td>趋势维度评分 [-1, 1]</td></tr>
           <tr><th>breadth_score</th><td>广度维度评分 [-1, 1]</td></tr>
@@ -417,7 +429,7 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
       initRegimeCharts();
       window._regimeChartsInit = true;
     }
-    if (page === 'portfolio' && !window._pfInit && window.PORTFOLIO_DATA) {
+    if (page === 'portfolio' && !window._pfInit) {
       renderPortfolio();
       window._pfInit = true;
     }
@@ -718,8 +730,9 @@ function initRegimeCharts() {
 }
 
 // ════════ Portfolio Page ════════
+let _currentStrategy = 's1';
 function renderPortfolio() {
-  const pf = window.PORTFOLIO_DATA;
+  const pf = _currentStrategy === 's1' ? window.PORTFOLIO_DATA : window.PORTFOLIO_DATA_S2;
   if (!pf) return;
   const L = pf.latest;
 
@@ -733,7 +746,7 @@ function renderPortfolio() {
     <div class="pf-card">
       <div class="pf-card-label">当前净值</div>
       <div class="pf-card-value">${fmtY(L.equity)}</div>
-      <div class="pf-card-sub">NAV: ${L.nav.toFixed(4)} · ZZ1500: ${L.zz1500_nav.toFixed(4)}</div>
+      <div class="pf-card-sub">NAV: ${L.nav.toFixed(4)} · 基准: ${L.zz1500_nav.toFixed(4)}</div>
     </div>
     <div class="pf-card">
       <div class="pf-card-label">累计收益</div>
@@ -758,7 +771,9 @@ function renderPortfolio() {
   `;
 
   // ── NAV chart ──
+  if (window._pfEcharts) window._pfEcharts.dispose();
   const chart = echarts.init(document.getElementById('pf-chart-nav'));
+  window._pfEcharts = chart;
   const hist = pf.nav_history;
   const dates = hist.map(d => d.date);
   const navVals = hist.map(d => d.nav);
@@ -771,16 +786,16 @@ function renderPortfolio() {
         const idx = params[0].dataIndex;
         const d = hist[idx];
         if (!d) return '';
-        return `<b>${d.date}</b><br/>策略净值: ${d.nav.toFixed(4)} (${d.ret_pct.toFixed(2)}%)<br/>ZZ1500: ${d.zz1500_nav.toFixed(4)} (${d.zz1500_ret_pct.toFixed(2)}%)<br/>超额: ${(d.excess_nav * 100 - 100).toFixed(2)}%<br/>回撤: ${d.drawdown_pct.toFixed(1)}%`;
+        return `<b>${d.date}</b><br/>策略净值: ${d.nav.toFixed(4)} (${d.ret_pct.toFixed(2)}%)<br/>基准: ${d.zz1500_nav.toFixed(4)} (${d.zz1500_ret_pct.toFixed(2)}%)<br/>超额: ${(d.excess_nav * 100 - 100).toFixed(2)}%<br/>回撤: ${d.drawdown_pct.toFixed(1)}%`;
       }
     },
-    legend: { data: ['策略净值', 'ZZ1500 基准'], top: 5, textStyle: { fontSize: 12, color: '#666' }, icon: 'rect', itemWidth: 20, itemHeight: 2 },
+    legend: { data: ['策略净值', '基准'], top: 5, textStyle: { fontSize: 12, color: '#666' }, icon: 'rect', itemWidth: 20, itemHeight: 2 },
     grid: { left: 55, right: 20, top: 40, bottom: 50 },
     xAxis: { type: 'category', data: dates, axisLabel: { color: '#999' }, axisLine: { lineStyle: { color: '#ddd' } } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: '#999' }, splitLine: { lineStyle: { color: '#f0f0f0' } } },
     series: [
       { name: '策略净值', type: 'line', data: navVals, showSymbol: false, lineStyle: { width: 1.8, color: '#4a7fc1' }, areaStyle: { color: 'rgba(74,127,193,0.06)' } },
-      { name: 'ZZ1500 基准', type: 'line', data: benchVals, showSymbol: false, lineStyle: { width: 1.2, color: '#999', type: 'dashed' } },
+      { name: '基准', type: 'line', data: benchVals, showSymbol: false, lineStyle: { width: 1.2, color: '#999', type: 'dashed' } },
     ],
     dataZoom: [
       { type: 'inside', zoomOnMouseWheel: true, moveOnMouseWheel: false, moveOnMouseMove: false },
@@ -876,6 +891,18 @@ function renderPortfolio() {
   // if (dailyDiv) { /* rendering code here if needed later */ }
 }
 
+// Strategy toggle
+document.querySelectorAll('#strategy-toggle span').forEach(function(el) {
+  el.addEventListener('click', function() {
+    var s = this.dataset.s;
+    if (s === _currentStrategy) return;
+    _currentStrategy = s;
+    document.querySelectorAll('#strategy-toggle span').forEach(function(e) { e.classList.remove('active'); });
+    this.classList.add('active');
+    renderPortfolio();
+  });
+});
+
 // ════════ Init (load data with cache-busting, then render) ════════
 (function() {
   var s = document.createElement('script');
@@ -892,9 +919,10 @@ function renderPortfolio() {
     var p = document.createElement('script');
     p.src = 'portfolio.js?v=' + Date.now();
     p.onload = function() {
-      if (window.PORTFOLIO_DATA) {
-        // Pre-render portfolio data (charts will init on tab click)
-      }
+      // Load 防守策略 portfolio
+      var p2 = document.createElement('script');
+      p2.src = 'portfolio_s2.js?v=' + Date.now();
+      document.head.appendChild(p2);
     };
     document.head.appendChild(p);
   };
