@@ -177,8 +177,8 @@ def _yesterday_performance(
     current = snapshots[snapshots["date"] == latest][["stock_id", "last_price", "shares"]].copy()
     current = current.rename(columns={"last_price": "today_price", "shares": "today_shares"})
     sells = trades[(trades["date"] == latest) & (trades["action"] == "SELL")].copy()
-    sell_px = sells.groupby("stock_id")["price"].mean().rename("sell_price") if not sells.empty else pd.Series(dtype=float)
-    sell_fee = sells.groupby("stock_id")["fee"].sum().rename("sell_fee") if not sells.empty else pd.Series(dtype=float)
+    sell_px = sells.groupby("stock_id")["price"].mean().rename("sell_price") if not sells.empty else pd.Series(name="sell_price", dtype=float, index=pd.Index([], name="stock_id"))
+    sell_fee = sells.groupby("stock_id")["fee"].sum().rename("sell_fee") if not sells.empty else pd.Series(name="sell_fee", dtype=float, index=pd.Index([], name="stock_id"))
     work = prev.merge(current, on="stock_id", how="left").merge(sell_px, on="stock_id", how="left").merge(sell_fee, on="stock_id", how="left")
     work["valuation_price"] = work["today_price"].fillna(work["sell_price"]).fillna(work["last_price"])
     work["return_pct"] = (work["valuation_price"] / work["last_price"] - 1.0) * 100.0
