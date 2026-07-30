@@ -304,6 +304,8 @@ def main() -> None:
     parser.add_argument("--capital", type=float, default=200_000.0)
     parser.add_argument("--dual", action="store_true",
                         help="Also generate portfolio_s2.js from defend strategy")
+    parser.add_argument("--triple", action="store_true",
+                        help="Generate all three: baseline + defend + elite")
     args = parser.parse_args()
 
     market = build_market_data(args.market_csv)
@@ -317,7 +319,7 @@ def main() -> None:
     print(f"基准策略 through {latest['date']}: NAV={latest['nav']:.6f}, "
           f"equity={latest['equity']:,.2f}, positions={latest['n_positions']}")
 
-    if args.dual:
+    if args.dual or args.triple:
         s2_dir = args.evidence_dir.parent / "evidence_s2"
         portfolio_s2 = build_portfolio_data(s2_dir, args.price_path,
                                             pd.Timestamp(args.start), args.capital)
@@ -327,6 +329,17 @@ def main() -> None:
         latest_s2 = portfolio_s2["latest"]
         print(f"防守策略 through {latest_s2['date']}: NAV={latest_s2['nav']:.6f}, "
               f"equity={latest_s2['equity']:,.2f}, positions={latest_s2['n_positions']}")
+
+    if args.triple:
+        s3_dir = args.evidence_dir.parent / "evidence_s3"
+        portfolio_s3 = build_portfolio_data(s3_dir, args.price_path,
+                                            pd.Timestamp(args.start), args.capital)
+        _write_js_json(portfolio_s3, args.web_dir / "portfolio_s3.js",
+                       "PORTFOLIO_DATA_S3",
+                       args.web_dir / "portfolio_s3_data.json")
+        latest_s3 = portfolio_s3["latest"]
+        print(f"集中策略 through {latest_s3['date']}: NAV={latest_s3['nav']:.6f}, "
+              f"equity={latest_s3['equity']:,.2f}, positions={latest_s3['n_positions']}")
 
 
 if __name__ == "__main__":

@@ -312,6 +312,7 @@
       <div class="strategy-toggle" id="strategy-toggle">
         <span class="active" data-s="s1">基准策略</span>
         <span data-s="s2">防守策略</span>
+        <span data-s="s3">集中策略</span>
       </div>
     </div>
     <div class="card">
@@ -732,7 +733,7 @@ function initRegimeCharts() {
 // ════════ Portfolio Page ════════
 let _currentStrategy = 's1';
 function renderPortfolio() {
-  const pf = _currentStrategy === 's1' ? window.PORTFOLIO_DATA : window.PORTFOLIO_DATA_S2;
+  const pf = _currentStrategy === 's1' ? window.PORTFOLIO_DATA : (_currentStrategy === 's2' ? window.PORTFOLIO_DATA_S2 : window.PORTFOLIO_DATA_S3);
   if (!pf) return;
   const L = pf.latest;
 
@@ -922,6 +923,11 @@ document.querySelectorAll('#strategy-toggle span').forEach(function(el) {
       // Load 防守策略 portfolio
       var p2 = document.createElement('script');
       p2.src = 'portfolio_s2.js?v=' + Date.now();
+      p2.onload = function() {
+        var p3 = document.createElement('script');
+        p3.src = 'portfolio_s3.js?v=' + Date.now();
+        document.head.appendChild(p3);
+      };
       document.head.appendChild(p2);
     };
     document.head.appendChild(p);
