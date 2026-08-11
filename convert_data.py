@@ -303,9 +303,9 @@ def main() -> None:
     parser.add_argument("--start", default="2026-07-20")
     parser.add_argument("--capital", type=float, default=200_000.0)
     parser.add_argument("--dual", action="store_true",
-                        help="Also generate portfolio_s2.js from defend strategy")
+                        help="Also generate portfolio_s2.js from experiment strategy")
     parser.add_argument("--triple", action="store_true",
-                        help="Generate all three: baseline + defend + elite")
+                        help="Generate all three: baseline + experiment + elite")
     args = parser.parse_args()
 
     market = build_market_data(args.market_csv)
@@ -327,7 +327,7 @@ def main() -> None:
                        "PORTFOLIO_DATA_S2",
                        args.web_dir / "portfolio_s2_data.json")
         latest_s2 = portfolio_s2["latest"]
-        print(f"防守策略 through {latest_s2['date']}: NAV={latest_s2['nav']:.6f}, "
+        print(f"实验策略 through {latest_s2['date']}: NAV={latest_s2['nav']:.6f}, "
               f"equity={latest_s2['equity']:,.2f}, positions={latest_s2['n_positions']}")
 
     if args.triple:

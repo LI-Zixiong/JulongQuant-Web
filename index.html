@@ -311,7 +311,7 @@
       <h3 style="margin:0">实盘</h3>
       <div class="strategy-toggle" id="strategy-toggle">
         <span class="active" data-s="s1">基准策略</span>
-        <span data-s="s2">防守策略</span>
+ <span data-s="s2">实验策略</span>
         <span data-s="s3">集中策略</span>
       </div>
     </div>
@@ -920,7 +920,7 @@ document.querySelectorAll('#strategy-toggle span').forEach(function(el) {
     var p = document.createElement('script');
     p.src = 'portfolio.js?v=' + Date.now();
     p.onload = function() {
-      // Load 防守策略 portfolio
+ // Load 实验策略 portfolio
       var p2 = document.createElement('script');
       p2.src = 'portfolio_s2.js?v=' + Date.now();
       p2.onload = function() {
